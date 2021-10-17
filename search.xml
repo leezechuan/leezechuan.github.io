@@ -4,6 +4,33 @@
   
     
     <entry>
+      <title>什么是接口幂等性</title>
+      <link href="/2021/10/17/%E4%BB%80%E4%B9%88%E6%98%AF%E6%8E%A5%E5%8F%A3%E5%B9%82%E7%AD%89%E6%80%A7/"/>
+      <url>/2021/10/17/%E4%BB%80%E4%B9%88%E6%98%AF%E6%8E%A5%E5%8F%A3%E5%B9%82%E7%AD%89%E6%80%A7/</url>
+      
+        <content type="html"><![CDATA[<h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>什么是幂等性？一次和多次请求某一个资源，对资源本身所产生的的影响均与一次执行的影响相同。</p><p>幂等性是系统服务对外的一种承诺，承诺只要调用接口成功了，多次调用对系统的影响是<font color=orange>一致</font>的。</p><h2 id="幂等性与重复提交比较"><a href="#幂等性与重复提交比较" class="headerlink" title="幂等性与重复提交比较"></a>幂等性与重复提交比较</h2><p><strong>幂等性</strong> 更多使用的情况是第一次请求知道结果，但是由于网络抖动或连接超时等情况未进行正常返回，在这种情况下系统自动再次发起请求，其目的是确认第一次是否请求完成。</p><p><strong>重复提交</strong> 更多使用的情况是第一次请求成功或请求结果暂未返回的情况下，人为的进行多次操作。</p><h2 id="SQL-语句幂等性"><a href="#SQL-语句幂等性" class="headerlink" title="SQL 语句幂等性"></a>SQL 语句幂等性</h2><h3 id="SELECT"><a href="#SELECT" class="headerlink" title="SELECT"></a>SELECT</h3><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> <span class="operator">*</span> <span class="keyword">FROM</span> `<span class="keyword">user</span>` <span class="keyword">WHERE</span> id <span class="operator">=</span> <span class="number">1</span></span><br></pre></td></tr></table></figure><p>无论执行多少次都不会对资源造成影响，查询具有天然的幂等性。</p><h3 id="UPDATE"><a href="#UPDATE" class="headerlink" title="UPDATE"></a>UPDATE</h3><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">UPDATE `<span class="keyword">user</span>` <span class="keyword">SET</span> status <span class="operator">=</span> <span class="number">1</span> <span class="keyword">WHERE</span> id <span class="operator">=</span> <span class="number">1</span></span><br></pre></td></tr></table></figure><p>无论执行成功多少次状态都是一致的，这种场景是幂等操作。</p><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">UPDATE `<span class="keyword">user</span>` <span class="keyword">SET</span> score <span class="operator">=</span> score<span class="operator">+</span><span class="number">1</span> <span class="keyword">WHERE</span> id <span class="operator">=</span> <span class="number">1</span></span><br></pre></td></tr></table></figure><p>每次执行的结果都会发生变化，这种场景不是幂等操作。</p><p>根据具体场景看能否写成这样的 <font color=orange>SQL</font> ：</p><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">UPDATE `<span class="keyword">user</span>` <span class="keyword">SET</span> score <span class="operator">=</span> score<span class="operator">+</span><span class="number">1</span> <span class="keyword">WHERE</span> id <span class="operator">=</span> <span class="number">1</span> <span class="keyword">AND</span> score <span class="operator">=</span> <span class="number">59</span></span><br></pre></td></tr></table></figure><p>无论执行成功多少次分数都是一致的，这种场景是幂等操作。</p><h3 id="DELETE"><a href="#DELETE" class="headerlink" title="DELETE"></a>DELETE</h3><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">DELETE</span> <span class="keyword">FROM</span> `<span class="keyword">user</span>` <span class="keyword">WHERE</span> id <span class="operator">=</span> <span class="number">1</span></span><br></pre></td></tr></table></figure><p>无论执行成功多少次数据都是一致的，这种场景是幂等操作。</p><h3 id="INSERT"><a href="#INSERT" class="headerlink" title="INSERT"></a>INSERT</h3><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">INSERT</span> <span class="keyword">INTO</span> `<span class="keyword">user</span>` (`name`, `status`, `score`) <span class="keyword">VALUES</span> (<span class="string">&#x27;tom&#x27;</span>, <span class="number">1</span>, <span class="number">80</span>)</span><br></pre></td></tr></table></figure><p>每次执行的结果都会发生变化，这种场景不是幂等操作。</p><p>根据具体场景看能否为 <font color=orange>name</font> 创建一个唯一索引，或执行类型这样的 <font color=orange>SQL</font> ：</p><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">INSERT</span> <span class="keyword">INTO</span> ... <span class="keyword">values</span> ... <span class="keyword">ON</span> DUPLICATE KEY UPDATE ...</span><br><span class="line"><span class="operator">/</span><span class="operator">/</span> 注意，要使用这条语句，前提条件是这个表必须有一个唯一索引或主键。</span><br></pre></td></tr></table></figure><h2 id="实现方案"><a href="#实现方案" class="headerlink" title="实现方案"></a>实现方案</h2><h3 id="方案一"><a href="#方案一" class="headerlink" title="方案一"></a>方案一</h3><p>下游系统提供相应查询接口。</p><p>上游系统在 <font color=orange>timeout</font> 后，首先去查询一下，如果查到了，就表明已经做了，成功了就不用做了，失败了就走失败流程。</p><h3 id="方案二"><a href="#方案二" class="headerlink" title="方案二"></a>方案二</h3><p>将这个查询操作交给下游系统，上游系统只管重试，下游系统保证一次和多次的请求产生的影响是一样的。这时我们就说下游系统提供的接口支持幂等性。</p><h2 id="小结"><a href="#小结" class="headerlink" title="小结"></a>小结</h2><p>幂等性关注的是多次请求是否对资源产生了副作用，而不是关注的结果。<font color=orange>SELECT</font> 语句有可能每次查询的数据不一致，但是它是幂等性的。</p><p>关于 实现方案 -&gt; 方案二 的具体实现方案，根据业务的实际情况考虑合适的解决方案，比如：通过 <font color=orange>SQL</font> 语句就可以实现幂等，就没必要引入 <font color=orange>全局唯一ID</font> 的解决方案。</p>]]></content>
+      
+      
+      <categories>
+          
+          <category> 设计规范 </category>
+          
+      </categories>
+      
+      
+        <tags>
+            
+            <tag> API </tag>
+            
+            <tag> 微服务 </tag>
+            
+        </tags>
+      
+    </entry>
+    
+    
+    
+    <entry>
       <title>浅谈国产数据库在金融界的应用-概念篇</title>
       <link href="/2021/10/10/%E6%B5%85%E8%B0%88%E5%9B%BD%E4%BA%A7%E6%95%B0%E6%8D%AE%E5%BA%93%E5%9C%A8%E9%87%91%E8%9E%8D%E7%95%8C%E7%9A%84%E5%BA%94%E7%94%A8(%E4%B8%80)/"/>
       <url>/2021/10/10/%E6%B5%85%E8%B0%88%E5%9B%BD%E4%BA%A7%E6%95%B0%E6%8D%AE%E5%BA%93%E5%9C%A8%E9%87%91%E8%9E%8D%E7%95%8C%E7%9A%84%E5%BA%94%E7%94%A8(%E4%B8%80)/</url>
